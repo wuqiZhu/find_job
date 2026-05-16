@@ -1,0 +1,258 @@
+{
+  "name": "求职自动化 - 岗位抓取与AI评分",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 6
+            }
+          ]
+        }
+      },
+      "id": "a1b2c3d4-1111-4000-8000-000000000001",
+      "name": "每6小时触发",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [250, 300]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://www.zhipin.com/wapi/zpgeek/search/joblist.json",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "User-Agent",
+              "value": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+            },
+            {
+              "name": "Referer",
+              "value": "https://www.zhipin.com/web/geek/job"
+            },
+            {
+              "name": "Cookie",
+              "value": "={{ $json.cookie || 'YOUR_BOSS_COOKIE_HERE' }}"
+            }
+          ]
+        },
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            { "name": "scene", "value": "1" },
+            { "name": "query", "value": "嵌入式Linux开发" },
+            { "name": "city", "value": "101280600" },
+            { "name": "experience", "value": "104,105,106" },
+            { "name": "page", "value": "1" },
+            { "name": "pageSize", "value": "30" }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          },
+          "timeout": 30000
+        }
+      },
+      "id": "a1b2c3d4-1111-4000-8000-000000000002",
+      "name": "抓取Boss直聘岗位",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [470, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "const inputData = $input.all();\nconst jobs = [];\n\nfor (const item of inputData) {\n  const jobList = item.json?.zpData?.jobList || [];\n  for (const job of jobList) {\n    jobs.push({\n      json: {\n        jobId: job.encryptJobId || job.jobId || '',\n        company: job.brandName || job.companyName || 'Unknown',\n        role: job.jobName || '',\n        location: (job.areaDistrict || '') + ' ' + (job.businessDistrict || ''),\n        salary: job.salaryDesc || '',\n        experience: job.jobExperience || '',\n        education: job.jobDegree || '',\n        skills: (job.skills || []).join(', '),\n        jd: [\n          job.jobName || '',\n          '公司: ' + (job.brandName || ''),\n          '经验: ' + (job.jobExperience || ''),\n          '学历: ' + (job.jobDegree || ''),\n          '技能: ' + (job.skills || []).join(', '),\n          '薪资: ' + (job.salaryDesc || '')\n        ].join('\\n'),\n        url: 'https://www.zhipin.com/job_detail/' + (job.encryptJobId || '') + '.html',\n        bossTitle: job.bossTitle || '',\n        bossOnline: job.bossOnline || false,\n        source: 'boss'\n      }\n    });\n  }\n}\n\nif (jobs.length === 0) {\n  return [{ json: { _empty: true, message: 'No jobs found' } }];\n}\n\nreturn jobs;"
+      },
+      "id": "a1b2c3d4-1111-4000-8000-000000000003",
+      "name": "解析岗位数据",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [690, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "const job = $input.all()[0].json;\nif (job._empty) {\n  return [{ json: { _skip: true } }];\n}\nreturn [{ json: job }];"
+      },
+      "id": "a1b2c3d4-1111-4000-8000-000000000004",
+      "name": "检查是否有数据",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [690, 500]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "cond-skip",
+              "leftValue": "={{ $json._skip }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "notEqual"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "a1b2c3d4-1111-4000-8000-000000000005",
+      "name": "有数据?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [910, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://scoring-service:5000/evaluate",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ jd: $json.jd, company: $json.company, role: $json.role }) }}",
+        "options": {
+          "timeout": 200000,
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "id": "a1b2c3d4-1111-4000-8000-000000000006",
+      "name": "调用AI评分",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1130, 200]
+    },
+    {
+      "parameters": {
+        "jsCode": "const scored = $input.all()[0].json;\nconst original = $('解析岗位数据').first().json;\n\nreturn [{\n  json: {\n    ...original,\n    score: scored.score || 0,\n    score_raw: scored.score_raw || 'N/A',\n    archetype: scored.archetype || '',\n    legitimacy: scored.legitimacy || '',\n    report: (scored.report || '').substring(0, 2000),\n    scored_at: new Date().toISOString()\n  }\n}];"
+      },
+      "id": "a1b2c3d4-1111-4000-8000-000000000007",
+      "name": "合并评分结果",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1350, 200]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "cond-high-score",
+              "leftValue": "={{ $json.score }}",
+              "rightValue": 80,
+              "operator": {
+                "type": "number",
+                "operation": "gte"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "a1b2c3d4-1111-4000-8000-000000000008",
+      "name": "分数>=80?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1570, 200]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://oapi.dingtalk.com/robot/send?access_token=YOUR_DINGTALK_TOKEN",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({\n  msgtype: 'markdown',\n  markdown: {\n    title: '🎯 高匹配岗位',\n    text: '## 🎯 发现高匹配岗位\\n\\n- **公司**：' + $json.company + '\\n- **职位**：' + $json.role + '\\n- **评分**：' + $json.score + '/100\\n- **地点**：' + $json.location + '\\n- **薪资**： $json.salary + '\\n- **经验**：' + $json.experience + '\\n- **Boss**：' + $json.bossTitle + ( $json.bossOnline ? ' 🟢在线' : '' ) + '\\n\\n[👉 查看详情](' + $json.url + ')\\n\\n---\\n请及时查看并决定是否投递！'\n  }\n}) }}"
+      },
+      "id": "a1b2c3d4-1111-4000-8000-000000000009",
+      "name": "钉钉通知_高分",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1790, 100]
+    },
+    {
+      "parameters": {
+        "jsCode": "const job = $input.all()[0].json;\nreturn [{\n  json: {\n    _action: 'save_high_score',\n    jobId: job.jobId,\n    company: job.company,\n    role: job.role,\n    location: job.location,\n    salary: job.salary,\n    score: job.score,\n    status: 'notified',\n    url: job.url\n  }\n}];"
+      },
+      "id": "a1b2c3d4-1111-4000-8000-000000000010",
+      "name": "记录高分岗位",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1790, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "const job = $input.all()[0].json;\nreturn [{\n  json: {\n    _action: 'save_low_score',\n    jobId: job.jobId,\n    company: job.company,\n    role: job.role,\n    score: job.score,\n    status: 'skipped'\n  }\n}];"
+      },
+      "id": "a1b2c3d4-1111-4000-8000-000000000011",
+      "name": "记录低分岗位",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1790, 500]
+    }
+  ],
+  "connections": {
+    "每6小时触发": {
+      "main": [
+        [{ "node": "抓取Boss直聘岗位", "type": "main", "index": 0 }]
+      ]
+    },
+    "抓取Boss直聘岗位": {
+      "main": [
+        [{ "node": "解析岗位数据", "type": "main", "index": 0 }]
+      ]
+    },
+    "解析岗位数据": {
+      "main": [
+        [{ "node": "有数据?", "type": "main", "index": 0 }]
+      ]
+    },
+    "有数据?": {
+      "main": [
+        [{ "node": "调用AI评分", "type": "main", "index": 0 }],
+        []
+      ]
+    },
+    "调用AI评分": {
+      "main": [
+        [{ "node": "合并评分结果", "type": "main", "index": 0 }]
+      ]
+    },
+    "合并评分结果": {
+      "main": [
+        [{ "node": "分数>=80?", "type": "main", "index": 0 }]
+      ]
+    },
+    "分数>=80?": {
+      "main": [
+        [{ "node": "钉钉通知_高分", "type": "main", "index": 0 }, { "node": "记录高分岗位", "type": "main", "index": 0 }],
+        [{ "node": "记录低分岗位", "type": "main", "index": 0 }]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "staticData": null,
+  "tags": [],
+  "triggerCount": 1
+}
