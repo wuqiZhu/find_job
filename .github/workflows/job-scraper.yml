@@ -32,7 +32,8 @@ jobs:
         env:
           BOSS_COOKIE: ${{ secrets.BOSS_COOKIE }}
           DINGTALK_WEBHOOK: ${{ secrets.DINGTALK_WEBHOOK }}
+          DINGTALK_SECRET: ${{ secrets.DINGTALK_SECRET }}
           MIMO_API_KEY: ${{ secrets.MIMO_API_KEY }}
-          MIMO_BASE_URL: ${{ secrets.MIMO_BASE_URL || 'https://api.xiaomimimo.com/v1' }}
+          MIMO_BASE_URL: ${{ secrets.MIMO_BASE_URL || 'https://token-plan-cn.xiaomimimo.com/v1' }}
           MIMO_MODEL: ${{ secrets.MIMO_MODEL || 'mimo-v2.5-pro' }}
         run: python scripts/github_scraper.py

@@ -7,14 +7,40 @@ GitHub Actions 定时岗位抓取脚本
 """
 
 import os
+import sys
 import json
 import time
+import hmac
 import hashlib
+import base64
+import urllib.parse
 import requests
 from datetime import datetime
 
+if sys.platform == 'win32':
+    sys.stdout.reconfigure(encoding='utf-8')
+
+def load_env_file():
+    env_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '.env')
+    if not os.path.exists(env_path):
+        return
+    with open(env_path, 'r', encoding='utf-8') as f:
+        for line in f:
+            line = line.strip()
+            if not line or line.startswith('#'):
+                continue
+            if '=' in line:
+                key, value = line.split('=', 1)
+                key = key.strip()
+                value = value.strip()
+                if key and key not in os.environ:
+                    os.environ[key] = value
+
+load_env_file()
+
 BOSS_COOKIE = os.environ.get('BOSS_COOKIE', '')
 DINGTALK_WEBHOOK = os.environ.get('DINGTALK_WEBHOOK', '')
+DINGTALK_SECRET = os.environ.get('DINGTALK_SECRET', '')
 MIMO_API_KEY = os.environ.get('MIMO_API_KEY', '')
 MIMO_BASE_URL = os.environ.get('MIMO_BASE_URL', 'https://api.xiaomimimo.com/v1')
 MIMO_MODEL = os.environ.get('MIMO_MODEL', 'mimo-v2.5-pro')
@@ -76,6 +102,34 @@ def search_boss_jobs(query, city, page=1, page_size=30):
         return []
 
 
+def extract_mimo_response_text(result):
+    if "choices" in result:
+        try:
+            return result["choices"][0]["message"]["content"]
+        except (KeyError, IndexError, TypeError):
+            pass
+
+    for field in ["result", "response", "output", "text", "content"]:
+        val = result.get(field)
+        if isinstance(val, str) and val.strip():
+            return val.strip()
+
+    data = result.get("data")
+    if isinstance(data, dict):
+        if "choices" in data:
+            try:
+                return data["choices"][0]["message"]["content"]
+            except (KeyError, IndexError, TypeError):
+                pass
+        for field in ["result", "response", "output", "text", "content"]:
+            val = data.get(field)
+            if isinstance(val, str) and val.strip():
+                return val.strip()
+
+    print(f"[WARN] 无法解析MiMo响应，原始响应: {json.dumps(result, ensure_ascii=False)[:500]}")
+    return None
+
+
 def evaluate_with_mimo(jd_text):
     if not MIMO_API_KEY:
         print("[WARN] MIMO_API_KEY 未设置，跳过评分")
@@ -84,7 +138,7 @@ def evaluate_with_mimo(jd_text):
     url = f"{MIMO_BASE_URL}/chat/completions"
     headers = {
         "Content-Type": "application/json",
-        "api-key": MIMO_API_KEY,
+        "Authorization": f"Bearer {MIMO_API_KEY}",
     }
 
     prompt = f"""你是一个求职匹配评估专家。请根据以下简历信息和职位描述，给出0-100的匹配度评分。
@@ -114,13 +168,15 @@ def evaluate_with_mimo(jd_text):
             {"role": "user", "content": prompt}
         ],
         "temperature": 0.1,
-        "max_completion_tokens": 300,
+        "max_tokens": 300,
     }
 
     try:
         resp = requests.post(url, headers=headers, json=payload, timeout=30)
         result = resp.json()
-        text = result["choices"][0]["message"]["content"]
+        text = extract_mimo_response_text(result)
+        if not text:
+            return None
         text = text.strip().replace("```json", "").replace("```", "").strip()
         return json.loads(text)
     except Exception as e:
@@ -133,13 +189,27 @@ def send_dingtalk(title, content):
         print("[WARN] DINGTALK_WEBHOOK 未设置，跳过通知")
         return False
 
+    webhook_url = DINGTALK_WEBHOOK
+
+    if DINGTALK_SECRET:
+        timestamp = str(round(time.time() * 1000))
+        string_to_sign = f"{timestamp}\n{DINGTALK_SECRET}"
+        hmac_code = hmac.new(
+            DINGTALK_SECRET.encode('utf-8'),
+            string_to_sign.encode('utf-8'),
+            digestmod=hashlib.sha256
+        ).digest()
+        sign = urllib.parse.quote_plus(base64.b64encode(hmac_code))
+        separator = "&" if "?" in webhook_url else "?"
+        webhook_url = f"{webhook_url}{separator}timestamp={timestamp}&sign={sign}"
+
     payload = {
         "msgtype": "markdown",
         "markdown": {"title": title, "text": content}
     }
 
     try:
-        resp = requests.post(DINGTALK_WEBHOOK, json=payload, timeout=10)
+        resp = requests.post(webhook_url, json=payload, timeout=10)
         result = resp.json()
         if result.get("errcode") == 0:
             print(f"[INFO] 钉钉通知发送成功: {title}")
@@ -198,6 +268,7 @@ def main():
             eval_result = evaluate_with_mimo(jd_text)
             score = eval_result.get("score", 0) if eval_result else 0
             reason = eval_result.get("reason", "") if eval_result else "评分失败"
+            score_failed = eval_result is None
 
             job_info = {
                 "id": job_id,
@@ -212,17 +283,20 @@ def main():
                 "url": url,
                 "score": score,
                 "reason": reason,
+                "score_failed": score_failed,
                 "time": datetime.now().isoformat(),
             }
 
             new_jobs.append(job_info)
             seen[job_id] = {"score": score, "time": datetime.now().isoformat()}
 
-            if score >= SCORE_THRESHOLD:
+            if score_failed:
+                print(f"  ⚠️ 评分失败，将直接推送岗位信息")
+            elif score >= SCORE_THRESHOLD:
                 high_score_jobs.append(job_info)
                 print(f"  ✅ 高分! {score}/100 - {reason}")
             else:
-                print(f"  ❌ 跳过 {score}/100 - {reason}")
+                print(f"  ❌ 低分 {score}/100 - {reason}")
 
             time.sleep(1)
 
@@ -232,14 +306,19 @@ def main():
     print(f"抓取完成: 新增 {len(new_jobs)} 条, 高分 {len(high_score_jobs)} 条")
     print(f"{'=' * 50}")
 
-    if high_score_jobs:
-        for job in high_score_jobs:
+    if new_jobs:
+        for job in new_jobs:
             online_tag = " 🟢在线" if job["boss_online"] else ""
-            msg = f"""## 🎯 发现高匹配岗位
+            if job.get("score_failed"):
+                score_text = "评分失败"
+            else:
+                score_text = f"{job['score']}/100"
+
+            msg = f"""## 📢 发现新岗位
 
 - **公司**: {job['company']}
 - **职位**: {job['role']}
-- **评分**: {job['score']}/100
+- **评分**: {score_text}
 - **薪资**: {job['salary']}
 - **地点**: {job['location']}
 - **经验**: {job['experience']}
@@ -251,7 +330,7 @@ def main():
 ---
 请及时查看并决定是否投递！"""
 
-            send_dingtalk(f"🎯 {job['company']} - {job['role']}", msg)
+            send_dingtalk(f"📢 {job['company']} - {job['role']}", msg)
             time.sleep(1)
 
     summary = f"""## 📊 岗位抓取报告
