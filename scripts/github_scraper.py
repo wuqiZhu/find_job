@@ -2,7 +2,7 @@
 """
 GitHub Actions 定时岗位抓取脚本
 - 从 Boss 直聘搜索岗位
-- 用 Gemini API 评分
+- 用小米 MiMo API 评分
 - 高分岗位通过钉钉通知
 """
 
@@ -15,7 +15,9 @@ from datetime import datetime
 
 BOSS_COOKIE = os.environ.get('BOSS_COOKIE', '')
 DINGTALK_WEBHOOK = os.environ.get('DINGTALK_WEBHOOK', '')
-GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY', '')
+MIMO_API_KEY = os.environ.get('MIMO_API_KEY', '')
+MIMO_BASE_URL = os.environ.get('MIMO_BASE_URL', 'https://api.xiaomimimo.com/v1')
+MIMO_MODEL = os.environ.get('MIMO_MODEL', 'mimo-v2.5-pro')
 
 SEARCH_QUERIES = [
     {"query": "嵌入式Linux开发", "city": "101280600", "city_name": "深圳"},
@@ -74,12 +76,16 @@ def search_boss_jobs(query, city, page=1, page_size=30):
         return []
 
 
-def evaluate_with_gemini(jd_text):
-    if not GEMINI_API_KEY:
-        print("[WARN] GEMINI_API_KEY 未设置，跳过评分")
+def evaluate_with_mimo(jd_text):
+    if not MIMO_API_KEY:
+        print("[WARN] MIMO_API_KEY 未设置，跳过评分")
         return None
 
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={GEMINI_API_KEY}"
+    url = f"{MIMO_BASE_URL}/chat/completions"
+    headers = {
+        "Content-Type": "application/json",
+        "api-key": MIMO_API_KEY,
+    }
 
     prompt = f"""你是一个求职匹配评估专家。请根据以下简历信息和职位描述，给出0-100的匹配度评分。
 
@@ -102,18 +108,23 @@ def evaluate_with_gemini(jd_text):
 """
 
     payload = {
-        "contents": [{"parts": [{"text": prompt}]}],
-        "generationConfig": {"temperature": 0.1, "maxOutputTokens": 200}
+        "model": MIMO_MODEL,
+        "messages": [
+            {"role": "system", "content": "你是一个专业的求职匹配评估专家，只返回JSON格式的评分结果。"},
+            {"role": "user", "content": prompt}
+        ],
+        "temperature": 0.1,
+        "max_completion_tokens": 300,
     }
 
     try:
-        resp = requests.post(url, json=payload, timeout=30)
+        resp = requests.post(url, headers=headers, json=payload, timeout=30)
         result = resp.json()
-        text = result["candidates"][0]["content"]["parts"][0]["text"]
+        text = result["choices"][0]["message"]["content"]
         text = text.strip().replace("```json", "").replace("```", "").strip()
         return json.loads(text)
     except Exception as e:
-        print(f"[ERROR] Gemini 评分失败: {e}")
+        print(f"[ERROR] MiMo 评分失败: {e}")
         return None
 
 
@@ -184,7 +195,7 @@ def main():
 
             print(f"\n[评估] {company} - {job_name}")
 
-            eval_result = evaluate_with_gemini(jd_text)
+            eval_result = evaluate_with_mimo(jd_text)
             score = eval_result.get("score", 0) if eval_result else 0
             reason = eval_result.get("reason", "") if eval_result else "评分失败"
 
