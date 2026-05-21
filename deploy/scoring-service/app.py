@@ -13,9 +13,9 @@ logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
 
-MIMO_API_KEY = os.environ.get('MIMO_API_KEY', '')
-MIMO_BASE_URL = os.environ.get('MIMO_BASE_URL', 'https://api.xiaomimimo.com/v1')
-MIMO_MODEL = os.environ.get('MIMO_MODEL', 'mimo-v2.5-pro')
+DEEPSEEK_API_KEY = os.environ.get('DEEPSEEK_API_KEY', 'sk-97d3644395eb4087b2137c0073f65697')
+DEEPSEEK_BASE_URL = os.environ.get('DEEPSEEK_BASE_URL', 'https://api.deepseek.com/v1')
+DEEPSEEK_MODEL = os.environ.get('DEEPSEEK_MODEL', 'deepseek-chat')
 
 PROFILE = {}
 
@@ -64,18 +64,18 @@ def extract_mimo_response_text(result):
             if isinstance(val, str) and val.strip():
                 return val.strip()
 
-    logger.warning(f"无法解析MiMo响应，原始响应: {json.dumps(result, ensure_ascii=False)[:500]}")
+    logger.warning(f"无法解析DeepSeek响应，原始响应: {json.dumps(result, ensure_ascii=False)[:500]}")
     return None
 
 
-def evaluate_with_mimo(jd_text):
-    if not MIMO_API_KEY:
-        return {"error": "MIMO_API_KEY 未设置", "success": False}
+def evaluate_with_deepseek(jd_text):
+    if not DEEPSEEK_API_KEY:
+        return {"error": "DEEPSEEK_API_KEY 未设置", "success": False}
 
-    url = f"{MIMO_BASE_URL}/chat/completions"
+    url = f"{DEEPSEEK_BASE_URL}/chat/completions"
     headers = {
         "Content-Type": "application/json",
-        "Authorization": f"Bearer {MIMO_API_KEY}",
+        "Authorization": f"Bearer {DEEPSEEK_API_KEY}",
     }
 
     # 从 profile.json 动态生成 prompt
@@ -133,7 +133,7 @@ def evaluate_with_mimo(jd_text):
 """
 
     payload = {
-        "model": MIMO_MODEL,
+        "model": DEEPSEEK_MODEL,
         "messages": [
             {"role": "system", "content": "你是一个专业的求职匹配评估专家，只返回JSON格式的评分结果。"},
             {"role": "user", "content": prompt}
@@ -183,7 +183,7 @@ def evaluate():
     logger.info(f"Evaluating: {company} - {role}")
 
     try:
-        result = evaluate_with_mimo(jd_text)
+        result = evaluate_with_deepseek(jd_text)
 
         if not result.get('success'):
             logger.warning(f"Evaluation failed: {company} - {role}: {result.get('error')}")
@@ -234,7 +234,7 @@ def evaluate_batch():
             continue
 
         try:
-            result = evaluate_with_mimo(jd)
+            result = evaluate_with_deepseek(jd)
 
             if not result.get('success'):
                 results.append({

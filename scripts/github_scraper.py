@@ -71,9 +71,9 @@ load_env_file()
 BOSS_COOKIE = os.environ.get('BOSS_COOKIE', '')
 DINGTALK_WEBHOOK = os.environ.get('DINGTALK_WEBHOOK', '')
 DINGTALK_SECRET = os.environ.get('DINGTALK_SECRET', '')
-MIMO_API_KEY = os.environ.get('MIMO_API_KEY', '')
-MIMO_BASE_URL = os.environ.get('MIMO_BASE_URL', 'https://token-plan-cn.xiaomimimo.com/v1')
-MIMO_MODEL = os.environ.get('MIMO_MODEL', 'mimo-v2.5-pro')
+DEEPSEEK_API_KEY = os.environ.get('DEEPSEEK_API_KEY', 'sk-97d3644395eb4087b2137c0073f65697')
+DEEPSEEK_BASE_URL = os.environ.get('DEEPSEEK_BASE_URL', 'https://api.deepseek.com/v1')
+DEEPSEEK_MODEL = os.environ.get('DEEPSEEK_MODEL', 'deepseek-chat')
 SCRAPE_MODE = os.environ.get('SCRAPE_MODE', 'auto')
 LIEPIN_COOKIE = os.environ.get('LIEPIN_COOKIE', '')
 ZHAOPIN_COOKIE = os.environ.get('ZHAOPIN_COOKIE', '')
@@ -927,9 +927,9 @@ def extract_mimo_response_text(result):
     return None
 
 
-def evaluate_with_mimo(jd_text, max_retries=2):
-    if not MIMO_API_KEY:
-        print("[WARN] MIMO_API_KEY 未设置，跳过评分")
+def evaluate_with_deepseek(jd_text, max_retries=2):
+    if not DEEPSEEK_API_KEY:
+        print("[WARN] DEEPSEEK_API_KEY 未设置，跳过评分")
         return None
 
     try:
@@ -939,10 +939,10 @@ def evaluate_with_mimo(jd_text, max_retries=2):
         import requests as std_requests
         use_curl = False
 
-    url = f"{MIMO_BASE_URL}/chat/completions"
+    url = f"{DEEPSEEK_BASE_URL}/chat/completions"
     headers = {
         "Content-Type": "application/json",
-        "Authorization": f"Bearer {MIMO_API_KEY}",
+        "Authorization": f"Bearer {DEEPSEEK_API_KEY}",
     }
 
     # 从 profile.json 动态生成 prompt
@@ -1003,7 +1003,7 @@ def evaluate_with_mimo(jd_text, max_retries=2):
 """
 
     payload = {
-        "model": MIMO_MODEL,
+        "model": DEEPSEEK_MODEL,
         "messages": [
             {"role": "system", "content": "你是一个专业的求职匹配评估专家，只返回JSON格式的评分结果。"},
             {"role": "user", "content": prompt}
@@ -1020,12 +1020,12 @@ def evaluate_with_mimo(jd_text, max_retries=2):
                 resp = std_requests.post(url, headers=headers, json=payload, timeout=30)
 
             if resp.status_code == 429:
-                print(f"[WARN] MiMo API限流，等待 {(attempt + 1) * 5}s")
+                print(f"[WARN] DeepSeek API限流，等待 {(attempt + 1) * 5}s")
                 time.sleep((attempt + 1) * 5)
                 continue
 
             if resp.status_code != 200:
-                print(f"[ERROR] MiMo API返回 HTTP {resp.status_code}: {resp.text[:200]}")
+                print(f"[ERROR] DeepSeek API返回 HTTP {resp.status_code}: {resp.text[:200]}")
                 if attempt < max_retries - 1:
                     time.sleep(3)
                 continue
@@ -1038,11 +1038,11 @@ def evaluate_with_mimo(jd_text, max_retries=2):
             return json.loads(text)
 
         except json.JSONDecodeError as e:
-            print(f"[ERROR] MiMo评分响应解析失败 (尝试 {attempt + 1}/{max_retries}): {e}")
+            print(f"[ERROR] DeepSeek评分响应解析失败 (尝试 {attempt + 1}/{max_retries}): {e}")
             if attempt < max_retries - 1:
                 time.sleep(3)
         except Exception as e:
-            print(f"[ERROR] MiMo评分失败 (尝试 {attempt + 1}/{max_retries}): {e}")
+            print(f"[ERROR] DeepSeek评分失败 (尝试 {attempt + 1}/{max_retries}): {e}")
             if attempt < max_retries - 1:
                 time.sleep(3)
 
@@ -1384,7 +1384,7 @@ def main():
 
             random_delay(2, 5)
 
-            eval_result = evaluate_with_mimo(jd_text)
+            eval_result = evaluate_with_deepseek(jd_text)
             score = eval_result.get("score", 0) if eval_result else 0
             reason = eval_result.get("reason", "") if eval_result else "评分失败"
             score_failed = eval_result is None

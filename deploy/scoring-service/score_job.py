@@ -4,9 +4,9 @@ import json
 import os
 import requests
 
-MIMO_API_KEY = os.environ.get('MIMO_API_KEY', '')
-MIMO_BASE_URL = os.environ.get('MIMO_BASE_URL', 'https://api.xiaomimimo.com/v1')
-MIMO_MODEL = os.environ.get('MIMO_MODEL', 'mimo-v2.5-pro')
+DEEPSEEK_API_KEY = os.environ.get('DEEPSEEK_API_KEY', 'sk-97d3644395eb4087b2137c0073f65697')
+DEEPSEEK_BASE_URL = os.environ.get('DEEPSEEK_BASE_URL', 'https://api.deepseek.com/v1')
+DEEPSEEK_MODEL = os.environ.get('DEEPSEEK_MODEL', 'deepseek-chat')
 
 PROFILE = {}
 
@@ -56,17 +56,17 @@ def extract_mimo_response_text(result):
 
 
 def evaluate_job(jd_text, company="Unknown", role="Unknown"):
-    if not MIMO_API_KEY:
-        return {"error": "MIMO_API_KEY 未设置", "success": False}
+    if not DEEPSEEK_API_KEY:
+        return {"error": "DEEPSEEK_API_KEY 未设置", "success": False}
 
     # 加载 profile
     if not PROFILE:
         load_profile()
 
-    url = f"{MIMO_BASE_URL}/chat/completions"
+    url = f"{DEEPSEEK_BASE_URL}/chat/completions"
     headers = {
         "Content-Type": "application/json",
-        "Authorization": f"Bearer {MIMO_API_KEY}",
+        "Authorization": f"Bearer {DEEPSEEK_API_KEY}",
     }
 
     # 从 profile.json 动态生成 prompt
@@ -124,7 +124,7 @@ def evaluate_job(jd_text, company="Unknown", role="Unknown"):
 """
 
     payload = {
-        "model": MIMO_MODEL,
+        "model": DEEPSEEK_MODEL,
         "messages": [
             {"role": "system", "content": "你是一个专业的求职匹配评估专家，只返回JSON格式的评分结果。"},
             {"role": "user", "content": prompt}
