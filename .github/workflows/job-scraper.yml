@@ -2,7 +2,7 @@ name: Job Scraper - 岗位抓取与通知
 
 on:
   schedule:
-    - cron: '0 2,8,14,20 * * *'
+    - cron: '0 8 * * *'  # 每天早上8点执行一次
   workflow_dispatch:
 
 jobs:
@@ -31,6 +31,10 @@ jobs:
       - name: Run job scraper
         env:
           BOSS_COOKIE: ${{ secrets.BOSS_COOKIE }}
+          LIEPIN_COOKIE: ${{ secrets.LIEPIN_COOKIE }}
+          ZHAOPIN_COOKIE: ${{ secrets.ZHAOPIN_COOKIE }}
+          ZHAOPIN_AT: ${{ secrets.ZHAOPIN_AT }}
+          ZHAOPIN_RT: ${{ secrets.ZHAOPIN_RT }}
           DINGTALK_WEBHOOK: ${{ secrets.DINGTALK_WEBHOOK }}
           DINGTALK_SECRET: ${{ secrets.DINGTALK_SECRET }}
           MIMO_API_KEY: ${{ secrets.MIMO_API_KEY }}

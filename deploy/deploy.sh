@@ -143,7 +143,7 @@ echo -e "${CYAN}║${NC} 接下来你需要:                             ${CYAN}
 echo -e "${CYAN}║${NC} 1. 访问 n8n 创建管理员账号                ${CYAN}║${NC}"
 echo -e "${CYAN}║${NC} 2. 导入工作流 workflows/*.json            ${CYAN}║${NC}"
 echo -e "${CYAN}║${NC} 3. 配置 Boss 直聘 Cookie                  ${CYAN}║${NC}"
-echo -e "${CYAN}║${NC} 4. 配置 GEMINI_API_KEY                    ${CYAN}║${NC}"
+echo -e "${CYAN}║${NC} 4. 配置 MIMO_API_KEY                      ${CYAN}║${NC}"
 echo -e "${CYAN}║${NC} 5. 配置钉钉 Webhook Token                ${CYAN}║${NC}"
 echo -e "${CYAN}╚═══════════════════════════════════════════╝${NC}"
 echo ""

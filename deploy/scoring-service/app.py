@@ -1,8 +1,7 @@
-import subprocess
 import json
-import re
 import os
 import logging
+import requests
 from datetime import datetime
 from flask import Flask, request, jsonify
 
@@ -14,56 +13,153 @@ logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
 
-CAREER_OPS_DIR = os.environ.get('CAREER_OPS_DIR', '/opt/career-ops')
-GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY', '')
-NODE_BIN = os.environ.get('NODE_BIN', 'node')
+MIMO_API_KEY = os.environ.get('MIMO_API_KEY', '')
+MIMO_BASE_URL = os.environ.get('MIMO_BASE_URL', 'https://api.xiaomimimo.com/v1')
+MIMO_MODEL = os.environ.get('MIMO_MODEL', 'mimo-v2.5-pro')
+
+PROFILE = {}
 
 
-def parse_score_from_output(output):
-    score_match = re.search(
-        r'---SCORE_SUMMARY---\s*\n(.*?)\n---END_SCORE_SUMMARY---',
-        output, re.DOTALL
-    )
-    if score_match:
-        summary = score_match.group(1)
-        result = {}
-        for line in summary.strip().split('\n'):
-            if ':' in line:
-                key, value = line.split(':', 1)
-                result[key.strip()] = value.strip()
-        return result
+def load_profile():
+    global PROFILE
+    profile_path = os.environ.get('PROFILE_PATH', os.path.join(os.path.dirname(__file__), '..', '..', 'profile.json'))
+    try:
+        with open(profile_path, 'r', encoding='utf-8') as f:
+            PROFILE = json.load(f)
+            logger.info(f"已加载 profile.json")
+            return PROFILE
+    except FileNotFoundError:
+        logger.warning("profile.json 未找到，使用默认配置")
+        return {}
+    except json.JSONDecodeError as e:
+        logger.error(f"profile.json 解析失败: {e}")
+        return {}
 
-    score_line = re.search(r'(?:Score|SCORE)[：:\s]*(\d+\.?\d*)', output)
-    if score_line:
-        return {'SCORE': score_line.group(1)}
 
+# 启动时加载 profile
+load_profile()
+
+
+def extract_mimo_response_text(result):
+    if "choices" in result:
+        try:
+            return result["choices"][0]["message"]["content"]
+        except (KeyError, IndexError, TypeError):
+            pass
+
+    for field in ["result", "response", "output", "text", "content"]:
+        val = result.get(field)
+        if isinstance(val, str) and val.strip():
+            return val.strip()
+
+    data = result.get("data")
+    if isinstance(data, dict):
+        if "choices" in data:
+            try:
+                return data["choices"][0]["message"]["content"]
+            except (KeyError, IndexError, TypeError):
+                pass
+        for field in ["result", "response", "output", "text", "content"]:
+            val = data.get(field)
+            if isinstance(val, str) and val.strip():
+                return val.strip()
+
+    logger.warning(f"无法解析MiMo响应，原始响应: {json.dumps(result, ensure_ascii=False)[:500]}")
     return None
 
 
-def normalize_score(score_raw):
+def evaluate_with_mimo(jd_text):
+    if not MIMO_API_KEY:
+        return {"error": "MIMO_API_KEY 未设置", "success": False}
+
+    url = f"{MIMO_BASE_URL}/chat/completions"
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {MIMO_API_KEY}",
+    }
+
+    # 从 profile.json 动态生成 prompt
+    if PROFILE:
+        edu = PROFILE.get('education', {})
+        skills = PROFILE.get('skills', {})
+        projects = PROFILE.get('projects', [])
+        certificates = PROFILE.get('certificates', [])
+        standards = PROFILE.get('scoring_standards', {})
+
+        # 构建技能描述
+        skill_lines = []
+        for category, items in skills.items():
+            skill_lines.extend([f"- {item}" for item in items])
+
+        # 构建评分标准
+        standard_lines = [f"- {score}: {desc}" for score, desc in standards.items()]
+
+        background = f"""## 我的背景
+- {edu.get('grade', '')}，{edu.get('school', '')}，{edu.get('major', '')}专业
+- 求职意向：{PROFILE.get('target', '')}
+{chr(10).join(skill_lines)}
+- 项目经验：{', '.join([p['name'] for p in projects])}
+- {', '.join(certificates)}"""
+
+        scoring_standards = f"""## 评分标准（注意：我是找实习的在校生，不是社招）
+{chr(10).join(standard_lines)}"""
+    else:
+        # 默认 prompt（profile.json 未加载时使用）
+        background = """## 我的背景
+- 大三本科生，长春大学旅游学院，物联网工程专业
+- 求职意向：嵌入式软件/Linux应用开发实习生
+- 熟练掌握C，熟悉C++面向对象编程，了解Python
+- 熟悉Linux系统编程（进程、线程、文件I/O、Socket），掌握TCP/UDP协议及epoll高并发模型
+- 了解嵌入式Linux开发流程，掌握UART、I2C、SPI等通信协议
+- 项目经验：基于MQTT的智能家居控制系统
+- 英语六级（CET-6），国家励志奖学金"""
+
+        scoring_standards = """## 评分标准（注意：我是找实习的在校生，不是社招）
+- 90-100: 完美匹配，必须投递（嵌入式/Linux开发实习，技术栈高度匹配）
+- 80-89: 高度匹配，建议投递（嵌入式/Linux相关实习，大部分技能匹配）
+- 70-79: 一般匹配，可考虑（相关领域实习，部分技能可迁移）
+- 60以下: 不太匹配（方向不相关，如纯前端、纯Java后端等）"""
+
+    prompt = f"""你是一个求职匹配评估专家。请根据以下简历信息和职位描述，给出0-100的匹配度评分。
+
+{background}
+
+{scoring_standards}
+
+## 职位描述
+{jd_text}
+
+请只返回一个JSON格式：{{"score": 分数, "reason": "简短理由"}}
+"""
+
+    payload = {
+        "model": MIMO_MODEL,
+        "messages": [
+            {"role": "system", "content": "你是一个专业的求职匹配评估专家，只返回JSON格式的评分结果。"},
+            {"role": "user", "content": prompt}
+        ],
+        "temperature": 0.1,
+        "max_tokens": 300,
+    }
+
     try:
-        s = float(score_raw)
-        if s <= 5:
-            return round(s * 20, 1)
-        return round(s, 1)
-    except (ValueError, TypeError):
-        return 0.0
+        resp = requests.post(url, headers=headers, json=payload, timeout=30)
+        result = resp.json()
+        text = extract_mimo_response_text(result)
+        if not text:
+            return {"error": "无法解析MiMo响应", "raw": str(result)[:500], "success": False}
 
+        text = text.strip().replace("```json", "").replace("```", "").strip()
+        parsed = json.loads(text)
+        score = parsed.get("score", 0)
 
-def run_evaluation(jd_text):
-    env = os.environ.copy()
-    if GEMINI_API_KEY:
-        env['GEMINI_API_KEY'] = GEMINI_API_KEY
-
-    result = subprocess.run(
-        [NODE_BIN, 'gemini-eval.mjs', '--no-save', jd_text],
-        capture_output=True,
-        text=True,
-        cwd=CAREER_OPS_DIR,
-        timeout=180,
-        env=env
-    )
-    return result.stdout + result.stderr
+        return {
+            "score": score,
+            "reason": parsed.get("reason", ""),
+            "success": True
+        }
+    except Exception as e:
+        return {"error": str(e), "success": False}
 
 
 @app.route('/health', methods=['GET'])
@@ -87,29 +183,31 @@ def evaluate():
     logger.info(f"Evaluating: {company} - {role}")
 
     try:
-        output = run_evaluation(jd_text)
-        score_info = parse_score_from_output(output)
+        result = evaluate_with_mimo(jd_text)
 
-        score_raw = score_info.get('SCORE', '0') if score_info else '0'
-        score_100 = normalize_score(score_raw)
+        if not result.get('success'):
+            logger.warning(f"Evaluation failed: {company} - {role}: {result.get('error')}")
+            return jsonify({
+                'company': company,
+                'role': role,
+                'score': 0,
+                'error': result.get('error', '评分失败'),
+                'success': False
+            })
+
+        score = result.get('score', 0)
 
         response = {
             'company': company,
             'role': role,
-            'score': score_100,
-            'score_raw': score_raw,
-            'archetype': score_info.get('ARCHETYPE', '') if score_info else '',
-            'legitimacy': score_info.get('LEGITIMACY', '') if score_info else '',
-            'report': output[:5000],
+            'score': score,
+            'reason': result.get('reason', ''),
             'success': True
         }
 
-        logger.info(f"Result: {company} - {role} => score={score_100}")
+        logger.info(f"Result: {company} - {role} => score={score}")
         return jsonify(response)
 
-    except subprocess.TimeoutExpired:
-        logger.warning(f"Timeout: {company} - {role}")
-        return jsonify({'error': 'Evaluation timed out (180s)', 'success': False}), 504
     except Exception as e:
         logger.error(f"Error evaluating {company} - {role}: {e}")
         return jsonify({'error': str(e), 'success': False}), 500
@@ -136,21 +234,23 @@ def evaluate_batch():
             continue
 
         try:
-            output = run_evaluation(jd)
-            score_info = parse_score_from_output(output)
-            score_raw = score_info.get('SCORE', '0') if score_info else '0'
-            score_100 = normalize_score(score_raw)
+            result = evaluate_with_mimo(jd)
 
-            results.append({
-                'company': company,
-                'role': role,
-                'score': score_100,
-                'score_raw': score_raw,
-                'archetype': score_info.get('ARCHETYPE', '') if score_info else '',
-                'success': True
-            })
-        except subprocess.TimeoutExpired:
-            results.append({'company': company, 'role': role, 'error': 'Timeout', 'success': False})
+            if not result.get('success'):
+                results.append({
+                    'company': company,
+                    'role': role,
+                    'error': result.get('error', '评分失败'),
+                    'success': False
+                })
+            else:
+                results.append({
+                    'company': company,
+                    'role': role,
+                    'score': result.get('score', 0),
+                    'reason': result.get('reason', ''),
+                    'success': True
+                })
         except Exception as e:
             results.append({'company': company, 'role': role, 'error': str(e), 'success': False})
 
@@ -162,5 +262,4 @@ def evaluate_batch():
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
     logger.info(f"Starting scoring service on port {port}")
-    logger.info(f"CAREER_OPS_DIR: {CAREER_OPS_DIR}")
     app.run(host='0.0.0.0', port=port, debug=False)

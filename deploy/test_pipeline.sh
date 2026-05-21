@@ -79,7 +79,7 @@ if (( $(echo "$SCORE >= 80" | bc -l 2>/dev/null || echo 0) )); then
 elif (( $(echo "$SCORE > 0" | bc -l 2>/dev/null || echo 0) )); then
   echo -e "${YELLOW}⚠️  分数 < 80，跳过投递${NC}"
 else
-  echo -e "${RED}❌ 评分失败，请检查 Gemini API Key 配置${NC}"
+  echo -e "${RED}❌ 评分失败，请检查 MIMO_API_KEY 配置${NC}"
 fi
 echo ""
 
