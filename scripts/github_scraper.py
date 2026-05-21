@@ -1049,6 +1049,164 @@ def evaluate_with_mimo(jd_text, max_retries=2):
     return None
 
 
+def save_feedback_record(job, action="notified"):
+    """保存岗位反馈记录到本地文件"""
+    feedback_file = os.path.join(DATA_DIR, "feedback_records.json")
+    try:
+        records = {}
+        if os.path.exists(feedback_file):
+            with open(feedback_file, "r", encoding="utf-8") as f:
+                records = json.load(f)
+
+        job_id = make_job_id(job)
+        records[job_id] = {
+            "company": job.get("company", job.get("brandName", "")),
+            "role": job.get("role", job.get("jobName", "")),
+            "score": job.get("score", 0),
+            "salary": job.get("salary", job.get("salaryDesc", "")),
+            "location": job.get("location", job.get("areaDistrict", "")),
+            "url": job.get("url", ""),
+            "action": action,
+            "notified_at": datetime.now().isoformat(),
+            "updated_at": datetime.now().isoformat()
+        }
+
+        with open(feedback_file, "w", encoding="utf-8") as f:
+            json.dump(records, f, ensure_ascii=False, indent=2)
+        return True
+    except Exception as e:
+        print(f"[WARN] 保存反馈记录失败: {e}")
+        return False
+
+
+def update_feedback_record(job_id, action):
+    """更新岗位反馈状态"""
+    feedback_file = os.path.join(DATA_DIR, "feedback_records.json")
+    try:
+        records = {}
+        if os.path.exists(feedback_file):
+            with open(feedback_file, "r", encoding="utf-8") as f:
+                records = json.load(f)
+
+        if job_id in records:
+            records[job_id]["action"] = action
+            records[job_id]["updated_at"] = datetime.now().isoformat()
+
+            with open(feedback_file, "w", encoding="utf-8") as f:
+                json.dump(records, f, ensure_ascii=False, indent=2)
+            return True
+    except Exception as e:
+        print(f"[WARN] 更新反馈记录失败: {e}")
+    return False
+
+
+def get_feedback_stats():
+    """获取反馈统计信息"""
+    feedback_file = os.path.join(DATA_DIR, "feedback_records.json")
+    try:
+        if not os.path.exists(feedback_file):
+            return {"total": 0, "stats": {}}
+
+        with open(feedback_file, "r", encoding="utf-8") as f:
+            records = json.load(f)
+
+        stats = {
+            "total": len(records),
+            "notified": 0,
+            "applied": 0,
+            "rejected": 0,
+            "viewed": 0,
+            "by_company": {},
+            "by_score_range": {"90-100": 0, "80-89": 0, "70-79": 0, "0-69": 0}
+        }
+
+        for job_id, record in records.items():
+            action = record.get("action", "notified")
+            if action == "notified":
+                stats["notified"] += 1
+            elif action == "applied":
+                stats["applied"] += 1
+            elif action == "rejected":
+                stats["rejected"] += 1
+            elif action == "viewed":
+                stats["viewed"] += 1
+
+            # 按公司统计
+            company = record.get("company", "未知")
+            stats["by_company"][company] = stats["by_company"].get(company, 0) + 1
+
+            # 按评分范围统计
+            score = record.get("score", 0)
+            if score >= 90:
+                stats["by_score_range"]["90-100"] += 1
+            elif score >= 80:
+                stats["by_score_range"]["80-89"] += 1
+            elif score >= 70:
+                stats["by_score_range"]["70-79"] += 1
+            else:
+                stats["by_score_range"]["0-69"] += 1
+
+        return stats
+    except Exception as e:
+        print(f"[WARN] 获取反馈统计失败: {e}")
+        return {"total": 0, "stats": {}}
+
+
+def generate_feedback_report():
+    """生成反馈统计报告"""
+    stats = get_feedback_stats()
+    if stats["total"] == 0:
+        return "暂无反馈记录"
+
+    report = f"""## 📊 投递反馈统计
+
+- **总通知数**: {stats['total']}
+- **已投递**: {stats['applied']}
+- **不合适**: {stats['rejected']}
+- **已查看**: {stats['viewed']}
+- **待处理**: {stats['notified']}
+
+### 按评分分布
+- 90-100分: {stats['by_score_range']['90-100']} 个
+- 80-89分: {stats['by_score_range']['80-89']} 个
+- 70-79分: {stats['by_score_range']['70-79']} 个
+- 0-69分: {stats['by_score_range']['0-69']} 个
+
+### 投递率
+- 投递率: {stats['applied'] / stats['total'] * 100:.1f}%
+- 拒绝率: {stats['rejected'] / stats['total'] * 100:.1f}%
+"""
+
+    # 按公司统计（前5名）
+    if stats["by_company"]:
+        sorted_companies = sorted(stats["by_company"].items(), key=lambda x: x[1], reverse=True)[:5]
+        report += "\n### 热门公司（前5）\n"
+        for company, count in sorted_companies:
+            report += f"- {company}: {count} 个岗位\n"
+
+    return report
+
+
+def get_dingtalk_webhook():
+    """获取带签名的钉钉 Webhook URL"""
+    if not DINGTALK_WEBHOOK:
+        return None
+
+    webhook_url = DINGTALK_WEBHOOK
+    if DINGTALK_SECRET:
+        timestamp = str(round(time.time() * 1000))
+        string_to_sign = f"{timestamp}\n{DINGTALK_SECRET}"
+        hmac_code = hmac.new(
+            DINGTALK_SECRET.encode('utf-8'),
+            string_to_sign.encode('utf-8'),
+            digestmod=hashlib.sha256
+        ).digest()
+        sign = urllib.parse.quote_plus(base64.b64encode(hmac_code))
+        separator = "&" if "?" in webhook_url else "?"
+        webhook_url = f"{webhook_url}{separator}timestamp={timestamp}&sign={sign}"
+    return webhook_url
+
+
 def send_dingtalk(title, content):
     if not DINGTALK_WEBHOOK:
         print("[WARN] DINGTALK_WEBHOOK 未设置，跳过通知")
@@ -1061,19 +1219,7 @@ def send_dingtalk(title, content):
         import requests as std_requests
         use_curl = False
 
-    webhook_url = DINGTALK_WEBHOOK
-
-    if DINGTALK_SECRET:
-        timestamp = str(round(time.time() * 1000))
-        string_to_sign = f"{timestamp}\n{DINGTALK_SECRET}"
-        hmac_code = hmac.new(
-            DINGTALK_SECRET.encode('utf-8'),
-            string_to_sign.encode('utf-8'),
-            digestmod=hashlib.sha256
-        ).digest()
-        sign = urllib.parse.quote_plus(base64.b64encode(hmac_code))
-        separator = "&" if "?" in webhook_url else "?"
-        webhook_url = f"{webhook_url}{separator}timestamp={timestamp}&sign={sign}"
+    webhook_url = get_dingtalk_webhook()
 
     payload = {
         "msgtype": "markdown",
@@ -1094,6 +1240,47 @@ def send_dingtalk(title, content):
             return False
     except Exception as e:
         print(f"[ERROR] 钉钉通知异常: {e}")
+        return False
+
+
+def send_dingtalk_actioncard(title, text, buttons):
+    """发送 ActionCard 消息（带按钮）"""
+    if not DINGTALK_WEBHOOK:
+        print("[WARN] DINGTALK_WEBHOOK 未设置，跳过通知")
+        return False
+
+    try:
+        from curl_cffi import requests as curl_requests
+        use_curl = True
+    except ImportError:
+        import requests as std_requests
+        use_curl = False
+
+    webhook_url = get_dingtalk_webhook()
+
+    payload = {
+        "msgtype": "actionCard",
+        "actionCard": {
+            "title": title,
+            "text": text,
+            "btns": buttons
+        }
+    }
+
+    try:
+        if use_curl:
+            resp = curl_requests.post(webhook_url, json=payload, timeout=10)
+        else:
+            resp = std_requests.post(webhook_url, json=payload, timeout=10)
+        result = resp.json()
+        if result.get("errcode") == 0:
+            print(f"[INFO] 钉钉 ActionCard 发送成功: {title}")
+            return True
+        else:
+            print(f"[ERROR] 钉钉 ActionCard 失败: {result}")
+            return False
+    except Exception as e:
+        print(f"[ERROR] 钉钉 ActionCard 异常: {e}")
         return False
 
 
@@ -1274,7 +1461,38 @@ def main():
                 action_link = f"[👉 立即投递]({job_url})"
                 view_link = ""
 
-            msg = f"""## 📢 发现新岗位
+            # 保存反馈记录
+            save_feedback_record(job, action="notified")
+
+            # 高分岗位使用 ActionCard 格式（带反馈按钮）
+            if not job.get("score_failed") and job['score'] >= SCORE_THRESHOLD:
+                msg = f"""## 📢 发现高分岗位
+
+- **公司**: {job['company']}
+- **职位**: {job['role']}
+- **评分**: {score_text}
+- **薪资**: {job['salary']}
+- **地点**: {job['location']}
+- **经验**: {job['experience']}
+- **Boss**: {job['boss_title']}{online_tag}
+- **理由**: {job['reason']}
+
+{action_link}
+{view_link}
+
+---
+请反馈您的处理结果："""
+
+                job_id = make_job_id(job)
+                buttons = [
+                    {"title": "✅ 已投递", "actionURL": f"https://github.com/wuqiZhu/find_job/actions"},
+                    {"title": "❌ 不合适", "actionURL": f"https://github.com/wuqiZhu/find_job/actions"},
+                    {"title": "👀 已查看", "actionURL": f"https://github.com/wuqiZhu/find_job/actions"}
+                ]
+                send_dingtalk_actioncard(f"📢 {job['company']} - {job['role']}", msg, buttons)
+            else:
+                # 普通岗位使用 Markdown 格式
+                msg = f"""## 📢 发现新岗位
 
 - **公司**: {job['company']}
 - **职位**: {job['role']}
@@ -1290,8 +1508,8 @@ def main():
 
 ---
 请及时查看并决定是否投递！"""
+                send_dingtalk(f"📢 {job['company']} - {job['role']}", msg)
 
-            send_dingtalk(f"📢 {job['company']} - {job['role']}", msg)
             time.sleep(1)
 
     high_score_list = ""
@@ -1299,6 +1517,15 @@ def main():
         high_score_list += f"- [{job['score']}分] **{job['company']}** - {job['role']} ({job['salary']})\n"
     if not high_score_jobs:
         high_score_list = "本次无高分岗位\n"
+
+    # 获取反馈统计
+    feedback_stats = get_feedback_stats()
+    feedback_summary = ""
+    if feedback_stats["total"] > 0:
+        feedback_summary = f"""
+### 📈 投递反馈统计（累计）
+- 总通知: {feedback_stats['total']} | 已投递: {feedback_stats['applied']} | 不合适: {feedback_stats['rejected']} | 待处理: {feedback_stats['notified']}
+- 投递率: {feedback_stats['applied'] / feedback_stats['total'] * 100:.1f}%"""
 
     summary = f"""## 📊 岗位抓取报告
 
@@ -1310,7 +1537,8 @@ def main():
 - **评分失败**: {score_fail_count} 条
 
 ### 高分岗位列表
-{high_score_list}"""
+{high_score_list}
+{feedback_summary}"""
 
     print("\n" + summary)
 
