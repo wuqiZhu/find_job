@@ -9,32 +9,35 @@ print("=" * 50)
 print("API Configuration Test")
 print("=" * 50)
 
-# Test MiMo API
-print("\n1. Testing MiMo API...")
-mimo_key = os.getenv('MIMO_API_KEY', '')
-mimo_url = os.getenv('MIMO_BASE_URL', '')
-mimo_model = os.getenv('MIMO_MODEL', '')
+# Test DeepSeek API
+print("\n1. Testing DeepSeek API...")
+deepseek_key = os.getenv('DEEPSEEK_API_KEY', 'sk-97d3644395eb4087b2137c0073f65697')
+deepseek_url = os.getenv('DEEPSEEK_BASE_URL', 'https://api.deepseek.com/v1')
+deepseek_model = os.getenv('DEEPSEEK_MODEL', 'deepseek-chat')
 
-print(f"   API Key: {mimo_key[:10]}...")
-print(f"   Base URL: {mimo_url}")
-print(f"   Model: {mimo_model}")
+print(f"   API Key: {deepseek_key[:10]}...")
+print(f"   Base URL: {deepseek_url}")
+print(f"   Model: {deepseek_model}")
 
 try:
-    url = f"{mimo_url}/chat/completions"
+    url = f"{deepseek_url}/chat/completions"
     headers = {
         'Content-Type': 'application/json',
-        'Authorization': f'Bearer {mimo_key}'
+        'Authorization': f'Bearer {deepseek_key}'
     }
     payload = {
-        'model': mimo_model,
+        'model': deepseek_model,
         'messages': [{'role': 'user', 'content': 'Hello'}],
         'max_tokens': 5
     }
     resp = requests.post(url, headers=headers, json=payload, timeout=30)
     if resp.status_code == 200:
         print("   Status: OK")
+        result = resp.json()
+        print(f"   Response: {result.get('choices', [{}])[0].get('message', {}).get('content', '')[:50]}")
     else:
         print(f"   Status: Failed ({resp.status_code})")
+        print(f"   Response: {resp.text[:200]}")
 except Exception as e:
     print(f"   Error: {e}")
 

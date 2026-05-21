@@ -99,6 +99,7 @@ SEARCH_QUERIES = [
 ]
 
 SCORE_THRESHOLD = 80
+DATA_DIR = "data"
 DATA_FILE = "data/seen_jobs.json"
 
 COOKIE_ERROR = None
