@@ -1,0 +1,79 @@
+# find_job 配置文件
+# 金字塔模型：求职导向的信息收集系统
+
+# 关键词配置（金字塔模型 - 短词匹配版）
+# 使用短词提高匹配率，多个短词组合计算相关性
+keywords:
+  # 第1层：求职招聘（最高优先级，权重 1.5）
+  job_hunting:
+    - "实习"
+    - "校招"
+    - "春招"
+    - "秋招"
+    - "提前批"
+    - "应届生"
+    - "BSP"
+    - "嵌入式开发"
+    - "C++开发"
+
+  # 第2层：面经与题库（权重 1.2）
+  interview:
+    - "面经"
+    - "面试"
+    - "笔试"
+    - "手撕代码"
+    - "面试题"
+
+# 信号源配置
+sources:
+  # 网页爬虫源（面经和求职信息）
+  web:
+    - name: "牛客网-嵌入式面经"
+      url: "https://www.nowcoder.com/discuss/tag/644"
+      selector: ".discuss-main"
+      enabled: true
+    - name: "牛客网-C++面经"
+      url: "https://www.nowcoder.com/discuss/tag/637"
+      selector: ".discuss-main"
+      enabled: true
+    - name: "牛客网-校招面经"
+      url: "https://www.nowcoder.com/discuss/tag/639"
+      selector: ".discuss-main"
+      enabled: true
+    - name: "实习僧"
+      url: "https://www.shixiseng.com/search?keyword=嵌入式"
+      selector: ".job-list"
+      enabled: true
+    - name: "应届生求职网"
+      url: "https://www.yingjiesheng.com/"
+      selector: ".list"
+      enabled: true
+
+# 过滤规则
+filters:
+  min_relevance_score: 0.15
+  exclude_keywords:
+    - "广告"
+    - "推广"
+    - "培训"
+  time_range_hours: 24
+  max_signals_per_day: 100
+
+# 运行配置
+scheduler:
+  interval_minutes: 30
+  run_at: "08:00"
+  timezone: "Asia/Shanghai"
+
+# 数据存储
+storage:
+  local_path: "./data/signals"
+  retention_days: 30
+  format: "json"
+
+# 日志配置
+logging:
+  level: "INFO"
+  file: "./logs/find_job.log"
+  max_size_mb: 10
+  backup_count: 5
