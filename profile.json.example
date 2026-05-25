@@ -1,28 +1,98 @@
 {
+  "name": "你的姓名",
   "education": {
-    "grade": "你的年级（如：大三）",
     "school": "你的学校",
-    "major": "你的专业"
+    "major": "你的专业",
+    "grade": "大三本科生"
   },
-  "target": "你的求职目标（如：嵌入式软件/Linux应用开发实习生）",
+  "target": "嵌入式软件/Linux应用开发实习生",
   "skills": {
-    "languages": ["C", "C++", "Python"],
-    "frameworks": ["Linux系统编程", "TCP/IP"],
-    "tools": ["Git", "Makefile", "GDB"]
+    "languages": ["C（熟练）", "C++（熟悉面向对象编程）", "Python（了解）"],
+    "system": [
+      "Linux系统编程（进程、线程、文件I/O、Socket）",
+      "TCP/UDP协议",
+      "epoll高并发模型",
+      "Shell脚本",
+      "GCC/GDB调试工具",
+      "Makefile构建"
+    ],
+    "embedded": [
+      "嵌入式Linux开发流程",
+      "UART",
+      "I2C",
+      "SPI通信协议",
+      "GPIO控制",
+      "中断处理",
+      "设备树（Device Tree）",
+      "交叉编译",
+      "Bootloader（U-Boot）",
+      "RTOS基础（FreeRTOS/RT-Thread）"
+    ],
+    "tools": ["MQTT", "QT", "InfluxDB", "Grafana", "Docker", "Git", "Vim", "VS Code"],
+    "frameworks": ["POSIX API", "pthread多线程", "select/poll/epoll", "信号量", "共享内存"]
   },
   "projects": [
     {
-      "name": "项目名称",
-      "tech_stack": "使用的技术栈",
-      "description": "项目描述"
+      "name": "项目名称1",
+      "tech_stack": "技术栈",
+      "keywords": ["关键词1", "关键词2"]
+    },
+    {
+      "name": "项目名称2",
+      "tech_stack": "技术栈",
+      "keywords": ["关键词1", "关键词2"]
     }
   ],
-  "certificates": ["CET-6"],
+  "certificates": ["证书1", "证书2"],
+  "cities": ["深圳", "上海", "北京", "杭州", "成都"],
+  "score_threshold": 60,
+  "blacklist_keywords": [
+    "社招",
+    "3年以上",
+    "5年以上",
+    "10年以上"
+  ],
+  "preferred_keywords": [
+    "嵌入式",
+    "Linux",
+    "物联网",
+    "IoT",
+    "单片机",
+    "STM32",
+    "ARM",
+    "C语言",
+    "驱动开发",
+    "BSP",
+    "RTOS",
+    "实习",
+    "应届"
+  ],
+  "search_keywords": [
+    "嵌入式实习",
+    "嵌入式开发实习",
+    "Linux开发实习",
+    "Linux应用开发实习",
+    "物联网实习",
+    "物联网开发实习",
+    "嵌入式软件实习",
+    "C语言实习",
+    "C++实习",
+    "嵌入式Linux实习",
+    "单片机实习",
+    "STM32实习",
+    "ARM实习",
+    "驱动开发实习",
+    "BSP实习",
+    "RTOS实习",
+    "通信协议实习",
+    "硬件开发实习",
+    "系统开发实习"
+  ],
   "scoring_standards": {
-    "90-100": "完美匹配，必须投递",
-    "80-89": "高度匹配，建议投递",
-    "70-79": "一般匹配，可考虑",
-    "60-69": "不太匹配，除非特别感兴趣"
-  },
-  "blacklist_keywords": ["外包", "外派", "驻场"]
+    "90-100": "完美匹配，必须投递（嵌入式/Linux开发实习，技术栈高度匹配）",
+    "80-89": "高度匹配，建议投递（嵌入式/Linux相关实习，大部分技能匹配）",
+    "70-79": "中等匹配，值得尝试（相关领域实习，技能可迁移学习）",
+    "60-69": "基础匹配，可以投递（有机会的实习岗位，拓宽选择范围）",
+    "0-59": "不太匹配（方向完全不相关，如纯设计、纯销售等）"
+  }
 }
