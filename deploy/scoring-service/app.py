@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
 
-DEEPSEEK_API_KEY = os.environ.get('DEEPSEEK_API_KEY', 'sk-97d3644395eb4087b2137c0073f65697')
+DEEPSEEK_API_KEY = os.environ.get('DEEPSEEK_API_KEY', '')
 DEEPSEEK_BASE_URL = os.environ.get('DEEPSEEK_BASE_URL', 'https://api.deepseek.com/v1')
 DEEPSEEK_MODEL = os.environ.get('DEEPSEEK_MODEL', 'deepseek-chat')
 

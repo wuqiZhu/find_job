@@ -1,50 +1,52 @@
+logs/
+
 # Python
 __pycache__/
 *.py[cod]
-*$py.class
-*.so
-.Python
-venv/
-env/
+*.pyo
 *.egg-info/
 dist/
 build/
+.eggs/
 
-# Node.js
-node_modules/
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
+# DrissionPage
+uc/
 
-# Docker volumes
-n8n_data/
-pg_data/
+# 浏览器测试
+test_boss_browser.html
+test_boss_*.html
+test_boss_*.png
 
-# Environment variables
+# 环境变量（必须忽略）
 .env
-.env.local
-*.env
+
+# 个人简历配置（包含隐私信息，使用 profile.json.example 作为模板）
+profile.json
+
+# 运行时数据
+data/seen_jobs.json
+data/feedback_records.json
+data/logs/
+data/latest_report.md
+*.db
+
+# GitHub Actions
+!deploy/scoring-service/Dockerfile
+!deploy/scoring-service/.env.example
+
+# n8n data
+n8n_data/
+.n8n/
 
 # IDE
-.vscode/
 .idea/
+.vscode/
 *.swp
 *.swo
 
 # OS
 .DS_Store
 Thumbs.db
-desktop.ini
 
-# Logs
-*.log
-logs/
-
-# Data files (local runtime)
-data/seen_jobs.json
-data/latest_report.md
-
-# Large reference projects (don't push to GitHub)
-n8n-master/
-career-ops-main/
-geekgeekrun-master/
+# Trae IDE
+.trae/

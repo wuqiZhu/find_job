@@ -17,6 +17,15 @@ import urllib.parse
 import random
 from datetime import datetime
 
+# 添加通知中心客户端路径
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'analyse_information', 'shared'))
+try:
+    from notification_client import add_signal as nc_add_signal, process_queue as nc_process_queue
+    NOTIFICATION_CENTER_AVAILABLE = True
+except ImportError:
+    NOTIFICATION_CENTER_AVAILABLE = False
+    print("[WARN] Notification center client not available")
+
 
 PROFILE = {}
 
@@ -71,7 +80,7 @@ load_env_file()
 BOSS_COOKIE = os.environ.get('BOSS_COOKIE', '')
 DINGTALK_WEBHOOK = os.environ.get('DINGTALK_WEBHOOK', '')
 DINGTALK_SECRET = os.environ.get('DINGTALK_SECRET', '')
-DEEPSEEK_API_KEY = os.environ.get('DEEPSEEK_API_KEY', 'sk-97d3644395eb4087b2137c0073f65697')
+DEEPSEEK_API_KEY = os.environ.get('DEEPSEEK_API_KEY', '')
 DEEPSEEK_BASE_URL = os.environ.get('DEEPSEEK_BASE_URL', 'https://api.deepseek.com/v1')
 DEEPSEEK_MODEL = os.environ.get('DEEPSEEK_MODEL', 'deepseek-chat')
 SCRAPE_MODE = os.environ.get('SCRAPE_MODE', 'auto')
@@ -81,20 +90,60 @@ ZHAOPIN_AT = os.environ.get('ZHAOPIN_AT', '')
 ZHAOPIN_RT = os.environ.get('ZHAOPIN_RT', '')
 
 SEARCH_QUERIES = [
+    # === 第1层：求职核心关键词（金字塔关键词.md） ===
+    # 深圳
+    {"platform": "boss", "query": "嵌入式实习", "city": "101280600", "city_name": "深圳"},
+    {"platform": "boss", "query": "C++实习", "city": "101280600", "city_name": "深圳"},
+    {"platform": "boss", "query": "BSP实习", "city": "101280600", "city_name": "深圳"},
+    {"platform": "boss", "query": "Linux驱动实习", "city": "101280600", "city_name": "深圳"},
+    {"platform": "boss", "query": "校招 嵌入式", "city": "101280600", "city_name": "深圳"},
+    # 上海
+    {"platform": "boss", "query": "嵌入式实习", "city": "101020100", "city_name": "上海"},
+    {"platform": "boss", "query": "C++实习", "city": "101020100", "city_name": "上海"},
+    {"platform": "boss", "query": "BSP实习", "city": "101020100", "city_name": "上海"},
+    {"platform": "boss", "query": "Linux驱动实习", "city": "101020100", "city_name": "上海"},
+    {"platform": "boss", "query": "校招 嵌入式", "city": "101020100", "city_name": "上海"},
+    # 北京
+    {"platform": "boss", "query": "嵌入式实习", "city": "101010100", "city_name": "北京"},
+    {"platform": "boss", "query": "C++实习", "city": "101010100", "city_name": "北京"},
+    {"platform": "boss", "query": "BSP实习", "city": "101010100", "city_name": "北京"},
+    {"platform": "boss", "query": "校招 嵌入式", "city": "101010100", "city_name": "北京"},
+    # 杭州
+    {"platform": "boss", "query": "嵌入式实习", "city": "101210100", "city_name": "杭州"},
+    {"platform": "boss", "query": "C++实习", "city": "101210100", "city_name": "杭州"},
+    {"platform": "boss", "query": "校招 嵌入式", "city": "101210100", "city_name": "杭州"},
+    # 成都
+    {"platform": "boss", "query": "嵌入式实习", "city": "101270100", "city_name": "成都"},
+    {"platform": "boss", "query": "BSP实习", "city": "101270100", "city_name": "成都"},
+    {"platform": "boss", "query": "校招 嵌入式", "city": "101270100", "city_name": "成都"},
+    # === 扩展关键词（补充覆盖） ===
+    {"platform": "boss", "query": "嵌入式开发实习", "city": "101280600", "city_name": "深圳"},
     {"platform": "boss", "query": "嵌入式Linux开发", "city": "101280600", "city_name": "深圳"},
-    {"platform": "boss", "query": "嵌入式Linux开发", "city": "101020100", "city_name": "上海"},
     {"platform": "boss", "query": "BSP工程师", "city": "101280600", "city_name": "深圳"},
     {"platform": "boss", "query": "Linux驱动开发", "city": "101280600", "city_name": "深圳"},
-    {"platform": "liepin", "query": "嵌入式Linux", "city": "040", "city_name": "深圳"},
-    {"platform": "liepin", "query": "BSP工程师", "city": "040", "city_name": "深圳"},
-    {"platform": "lagou", "query": "嵌入式Linux", "city": "深圳", "city_name": "深圳"},
-    {"platform": "lagou", "query": "BSP工程师", "city": "深圳", "city_name": "深圳"},
-    {"platform": "niuke", "query": "嵌入式Linux", "city": "深圳", "city_name": "深圳"},
-    {"platform": "niuke", "query": "BSP工程师", "city": "深圳", "city_name": "深圳"},
-    {"platform": "zhaopin", "query": "嵌入式Linux", "city": "763", "city_name": "深圳"},
-    {"platform": "zhaopin", "query": "BSP工程师", "city": "763", "city_name": "深圳"},
-    {"platform": "shixiseng", "query": "嵌入式Linux", "city": "深圳", "city_name": "深圳"},
-    {"platform": "shixiseng", "query": "BSP工程师", "city": "深圳", "city_name": "深圳"},
+    {"platform": "boss", "query": "物联网实习", "city": "101280600", "city_name": "深圳"},
+    {"platform": "boss", "query": "STM32实习", "city": "101280600", "city_name": "深圳"},
+    {"platform": "boss", "query": "嵌入式Linux开发", "city": "101020100", "city_name": "上海"},
+    {"platform": "boss", "query": "物联网实习", "city": "101020100", "city_name": "上海"},
+    {"platform": "boss", "query": "嵌入式Linux开发", "city": "101010100", "city_name": "北京"},
+    {"platform": "boss", "query": "物联网实习", "city": "101210100", "city_name": "杭州"},
+    {"platform": "boss", "query": "嵌入式Linux开发", "city": "101270100", "city_name": "成都"},
+    # === 其他平台 ===
+    {"platform": "liepin", "query": "嵌入式实习", "city": "040", "city_name": "深圳"},
+    {"platform": "liepin", "query": "BSP实习", "city": "040", "city_name": "深圳"},
+    {"platform": "liepin", "query": "Linux驱动实习", "city": "040", "city_name": "深圳"},
+    {"platform": "lagou", "query": "嵌入式实习", "city": "深圳", "city_name": "深圳"},
+    {"platform": "lagou", "query": "C++实习", "city": "深圳", "city_name": "深圳"},
+    {"platform": "lagou", "query": "物联网实习", "city": "深圳", "city_name": "深圳"},
+    {"platform": "niuke", "query": "嵌入式实习", "city": "深圳", "city_name": "深圳"},
+    {"platform": "niuke", "query": "BSP实习", "city": "深圳", "city_name": "深圳"},
+    {"platform": "zhaopin", "query": "嵌入式实习", "city": "763", "city_name": "深圳"},
+    {"platform": "zhaopin", "query": "C++实习", "city": "763", "city_name": "深圳"},
+    {"platform": "zhaopin", "query": "BSP实习", "city": "763", "city_name": "深圳"},
+    {"platform": "shixiseng", "query": "嵌入式实习", "city": "深圳", "city_name": "深圳"},
+    {"platform": "shixiseng", "query": "C++实习", "city": "深圳", "city_name": "深圳"},
+    {"platform": "shixiseng", "query": "BSP实习", "city": "深圳", "city_name": "深圳"},
+    {"platform": "shixiseng", "query": "Linux驱动实习", "city": "深圳", "city_name": "深圳"},
     {"platform": "shixiseng", "query": "嵌入式开发", "city": "深圳", "city_name": "深圳"},
 ]
 
@@ -972,8 +1021,14 @@ def evaluate_with_deepseek(jd_text, max_retries=2):
 - 项目经验：{', '.join([p['name'] for p in projects])}
 - {', '.join(certificates)}"""
 
-        scoring_standards = f"""## 评分标准（注意：我是找实习的在校生，不是社招）
-{chr(10).join(standard_lines)}"""
+        scoring_standards = f"""## 评分标准（重要：我是找实习的在校大学生，应该广撒网，多投递！）
+{chr(10).join(standard_lines)}
+
+**评分原则**：
+1. 只要是嵌入式、Linux、物联网、C/C++、单片机等相关领域，最低给60分
+2. 有"实习"关键词的岗位，额外加10分
+3. 技能可以学习，不要因为某个技能不熟悉就大幅扣分
+4. 宁可多投，不要漏投！"""
     else:
         # 默认 prompt（profile.json 未加载时使用）
         background = """## 我的背景
@@ -1491,6 +1546,21 @@ def main():
                     {"title": "👀 已查看", "actionURL": f"https://github.com/wuqiZhu/find_job/actions"}
                 ]
                 send_dingtalk_actioncard(f"📢 {job['company']} - {job['role']}", msg, buttons)
+                
+                # 发送到通知中心
+                if NOTIFICATION_CENTER_AVAILABLE:
+                    try:
+                        signal = {
+                            'title': f"{job['company']} - {job['role']}",
+                            'url': job['url'],
+                            'content': f"评分: {score_text} | 薪资: {job['salary']} | 地点: {job['location']}",
+                            'source': 'Boss直聘',
+                            'keywords': ['实习', '校招', 'BSP', '嵌入式开发'],
+                            'relevance_score': job.get('score', 0) / 100.0
+                        }
+                        nc_add_signal(signal, source='find_job')
+                    except Exception as e:
+                        print(f"[ERROR] Failed to send to notification center: {e}")
             else:
                 # 普通岗位使用 Markdown 格式
                 msg = f"""## 📢 发现新岗位
@@ -1510,6 +1580,21 @@ def main():
 ---
 请及时查看并决定是否投递！"""
                 send_dingtalk(f"📢 {job['company']} - {job['role']}", msg)
+                
+                # 发送到通知中心
+                if NOTIFICATION_CENTER_AVAILABLE:
+                    try:
+                        signal = {
+                            'title': f"{job['company']} - {job['role']}",
+                            'url': job['url'],
+                            'content': f"评分: {score_text} | 薪资: {job['salary']} | 地点: {job['location']}",
+                            'source': 'Boss直聘',
+                            'keywords': ['实习', '校招', 'BSP', '嵌入式开发'],
+                            'relevance_score': job.get('score', 0) / 100.0
+                        }
+                        nc_add_signal(signal, source='find_job')
+                    except Exception as e:
+                        print(f"[ERROR] Failed to send to notification center: {e}")
 
             time.sleep(1)
 
@@ -1555,6 +1640,14 @@ def main():
             f"{status_emoji} 抓取报告 - {status_text}",
             summary
         )
+    
+    # 处理通知中心队列
+    if NOTIFICATION_CENTER_AVAILABLE:
+        try:
+            nc_process_queue()
+            print("[INFO] Notification center queue processed")
+        except Exception as e:
+            print(f"[ERROR] Failed to process notification center queue: {e}")
 
 
 if __name__ == "__main__":

@@ -2,7 +2,9 @@ name: Job Scraper - 岗位抓取与通知
 
 on:
   schedule:
-    - cron: '0 8 * * *'  # 每天早上8点执行一次
+    - cron: '0 8 * * *'   # 每天早上8点
+    - cron: '0 12 * * *'  # 每天中午12点
+    - cron: '0 18 * * *'  # 每天下午6点
   workflow_dispatch:
 
 jobs:
@@ -37,8 +39,8 @@ jobs:
           ZHAOPIN_RT: ${{ secrets.ZHAOPIN_RT }}
           DINGTALK_WEBHOOK: ${{ secrets.DINGTALK_WEBHOOK }}
           DINGTALK_SECRET: ${{ secrets.DINGTALK_SECRET }}
-          MIMO_API_KEY: ${{ secrets.MIMO_API_KEY }}
-          MIMO_BASE_URL: ${{ secrets.MIMO_BASE_URL || 'https://token-plan-cn.xiaomimimo.com/v1' }}
-          MIMO_MODEL: ${{ secrets.MIMO_MODEL || 'mimo-v2.5-pro' }}
+          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+          DEEPSEEK_BASE_URL: ${{ secrets.DEEPSEEK_BASE_URL || 'https://api.deepseek.com/v1' }}
+          DEEPSEEK_MODEL: ${{ secrets.DEEPSEEK_MODEL || 'deepseek-chat' }}
           SCRAPE_MODE: ${{ secrets.SCRAPE_MODE || 'auto' }}
-        run: python scripts/github_scraper.py
+        run: python -m job_scraper.main

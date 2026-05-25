@@ -1,0 +1,28 @@
+{
+  "education": {
+    "grade": "你的年级（如：大三）",
+    "school": "你的学校",
+    "major": "你的专业"
+  },
+  "target": "你的求职目标（如：嵌入式软件/Linux应用开发实习生）",
+  "skills": {
+    "languages": ["C", "C++", "Python"],
+    "frameworks": ["Linux系统编程", "TCP/IP"],
+    "tools": ["Git", "Makefile", "GDB"]
+  },
+  "projects": [
+    {
+      "name": "项目名称",
+      "tech_stack": "使用的技术栈",
+      "description": "项目描述"
+    }
+  ],
+  "certificates": ["CET-6"],
+  "scoring_standards": {
+    "90-100": "完美匹配，必须投递",
+    "80-89": "高度匹配，建议投递",
+    "70-79": "一般匹配，可考虑",
+    "60-69": "不太匹配，除非特别感兴趣"
+  },
+  "blacklist_keywords": ["外包", "外派", "驻场"]
+}

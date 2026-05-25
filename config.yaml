@@ -1,53 +1,66 @@
 # find_job 配置文件
 # 金字塔模型：求职导向的信息收集系统
+# 负责第1层：求职（最高优先级）
 
-# 关键词配置（金字塔模型 - 短词匹配版）
-# 使用短词提高匹配率，多个短词组合计算相关性
+# 关键词配置（金字塔模型）
 keywords:
-  # 第1层：求职招聘（最高优先级，权重 1.5）
   job_hunting:
-    - "实习"
-    - "校招"
-    - "春招"
-    - "秋招"
-    - "提前批"
-    - "应届生"
-    - "BSP"
+    # 核心关键词（金字塔关键词.md）
+    - "嵌入式实习"
+    - "C++实习"
+    - "BSP实习"
+    - "Linux驱动实习"
+    - "校招 嵌入式"
+    # 扩展关键词（相近岗位，避免漏掉机会）
+    - "物联网实习"
+    - "嵌入式软件实习"
+    - "Linux应用实习"
     - "嵌入式开发"
-    - "C++开发"
+    - "嵌入式软件工程师"
 
-  # 第2层：面经与题库（权重 1.2）
-  interview:
-    - "面经"
-    - "面试"
-    - "笔试"
-    - "手撕代码"
-    - "面试题"
+# 搜索城市配置
+cities:
+  - name: "深圳"
+    code: "101280600"
+    priority: 1
+  - name: "上海"
+    code: "101020100"
+    priority: 2
+  - name: "北京"
+    code: "101010100"
+    priority: 2
+  - name: "杭州"
+    code: "101210100"
+    priority: 3
+  - name: "成都"
+    code: "101270100"
+    priority: 3
 
-# 信号源配置
-sources:
-  # 网页爬虫源（面经和求职信息）
-  web:
-    - name: "牛客网-嵌入式面经"
-      url: "https://www.nowcoder.com/discuss/tag/644"
-      selector: ".discuss-main"
-      enabled: true
-    - name: "牛客网-C++面经"
-      url: "https://www.nowcoder.com/discuss/tag/637"
-      selector: ".discuss-main"
-      enabled: true
-    - name: "牛客网-校招面经"
-      url: "https://www.nowcoder.com/discuss/tag/639"
-      selector: ".discuss-main"
-      enabled: true
-    - name: "实习僧"
-      url: "https://www.shixiseng.com/search?keyword=嵌入式"
-      selector: ".job-list"
-      enabled: true
-    - name: "应届生求职网"
-      url: "https://www.yingjiesheng.com/"
-      selector: ".list"
-      enabled: true
+# 平台配置
+platforms:
+  - name: "boss"
+    enabled: true
+    priority: 1
+  - name: "liepin"
+    enabled: true
+    priority: 2
+  - name: "lagou"
+    enabled: true
+    priority: 2
+  - name: "niuke"
+    enabled: true
+    priority: 3
+  - name: "zhaopin"
+    enabled: true
+    priority: 3
+  - name: "shixiseng"
+    enabled: true
+    priority: 3
+
+# 评分配置
+scoring:
+  threshold: 75
+  model: "deepseek-chat"
 
 # 过滤规则
 filters:
@@ -56,20 +69,17 @@ filters:
     - "广告"
     - "推广"
     - "培训"
+    - "外包"
+    - "驻场"
+    - "销售"
+    - "讲师"
   time_range_hours: 24
   max_signals_per_day: 100
 
-# 运行配置
-scheduler:
-  interval_minutes: 30
-  run_at: "08:00"
-  timezone: "Asia/Shanghai"
-
 # 数据存储
 storage:
-  local_path: "./data/signals"
+  local_path: "./data"
   retention_days: 30
-  format: "json"
 
 # 日志配置
 logging:
