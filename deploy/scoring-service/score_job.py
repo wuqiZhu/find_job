@@ -25,6 +25,8 @@ _load_env_file()
 DEEPSEEK_API_KEY = os.environ.get('DEEPSEEK_API_KEY', '')
 DEEPSEEK_BASE_URL = os.environ.get('DEEPSEEK_BASE_URL', 'https://api.deepseek.com/v1')
 DEEPSEEK_MODEL = os.environ.get('DEEPSEEK_MODEL', 'deepseek-chat')
+MAX_CALLS = int(os.environ.get('MAX_API_CALLS_PER_RUN', '30'))
+_call_count = 0
 
 PROFILE = {}
 
@@ -74,8 +76,15 @@ def extract_mimo_response_text(result):
 
 
 def evaluate_job(jd_text, company="Unknown", role="Unknown"):
+    global _call_count
+
     if not DEEPSEEK_API_KEY:
         return {"error": "DEEPSEEK_API_KEY 未设置", "success": False}
+
+    if _call_count >= MAX_CALLS:
+        return {"error": f"已达到 API 调用上限 ({MAX_CALLS})", "success": False}
+
+    _call_count += 1
 
     # 加载 profile
     if not PROFILE:
@@ -115,13 +124,11 @@ def evaluate_job(jd_text, company="Unknown", role="Unknown"):
     else:
         # 默认 prompt（profile.json 未加载时使用）
         background = """## 我的背景
-- 大三本科生，长春大学旅游学院，物联网工程专业
-- 求职意向：嵌入式软件/Linux应用开发实习生
-- 熟练掌握C，熟悉C++面向对象编程，了解Python
-- 熟悉Linux系统编程（进程、线程、文件I/O、Socket），掌握TCP/UDP协议及epoll高并发模型
-- 了解嵌入式Linux开发流程，掌握UART、I2C、SPI等通信协议
-- 项目经验：基于MQTT的智能家居控制系统
-- 英语六级（CET-6），国家励志奖学金"""
+- 本科生，XX大学，XX专业
+- 求职意向：XX开发实习生
+- 熟练掌握XX，熟悉XX，了解XX
+- 项目经验：XX项目
+- 证书：XX"""
 
         scoring_standards = """## 评分标准（注意：我是找实习的在校生，不是社招）
 - 90-100: 完美匹配，必须投递（嵌入式/Linux开发实习，技术栈高度匹配）

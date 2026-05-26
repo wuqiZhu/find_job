@@ -89,6 +89,12 @@ ZHAOPIN_COOKIE = os.environ.get('ZHAOPIN_COOKIE', '')
 ZHAOPIN_AT = os.environ.get('ZHAOPIN_AT', '')
 ZHAOPIN_RT = os.environ.get('ZHAOPIN_RT', '')
 
+MAX_API_CALLS_PER_RUN = int(os.environ.get('MAX_API_CALLS_PER_RUN', '30'))
+API_CALL_DELAY_MIN = float(os.environ.get('API_CALL_DELAY_MIN', '5'))
+API_CALL_DELAY_MAX = float(os.environ.get('API_CALL_DELAY_MAX', '10'))
+_api_call_count = 0
+_api_token_total = 0
+
 SEARCH_QUERIES = [
     # === 第1层：求职核心关键词（金字塔关键词.md） ===
     # 深圳
@@ -978,8 +984,14 @@ def extract_mimo_response_text(result):
 
 
 def evaluate_with_deepseek(jd_text, max_retries=2):
+    global _api_call_count, _api_token_total
+
     if not DEEPSEEK_API_KEY:
         print("[WARN] DEEPSEEK_API_KEY 未设置，跳过评分")
+        return None
+
+    if _api_call_count >= MAX_API_CALLS_PER_RUN:
+        print(f"[WARN] 已达到本次运行 API 调用上限 ({MAX_API_CALLS_PER_RUN})，跳过评分")
         return None
 
     try:
@@ -1085,6 +1097,11 @@ def evaluate_with_deepseek(jd_text, max_retries=2):
                 continue
 
             result = resp.json()
+            _api_call_count += 1
+            usage = result.get("usage", {})
+            tokens = usage.get("total_tokens", 300)
+            _api_token_total += tokens
+            print(f"  [API] 第 {_api_call_count}/{MAX_API_CALLS_PER_RUN} 次调用, 本次 {tokens} tokens, 累计 {_api_token_total} tokens")
             text = extract_mimo_response_text(result)
             if not text:
                 return None
@@ -1436,7 +1453,7 @@ def main():
 
             print(f"\n[评估] {company} - {job_name}")
 
-            random_delay(2, 5)
+            random_delay(API_CALL_DELAY_MIN, API_CALL_DELAY_MAX)
 
             eval_result = evaluate_with_deepseek(jd_text)
             score = eval_result.get("score", 0) if eval_result else 0
@@ -1625,6 +1642,12 @@ def main():
 {feedback_summary}"""
 
     print("\n" + summary)
+
+    print(f"\n📊 API 使用统计:")
+    print(f"  本次调用: {_api_call_count}/{MAX_API_CALLS_PER_RUN} 次")
+    print(f"  Token 消耗: {_api_token_total}")
+    est_cost = _api_token_total * 0.002 / 1000
+    print(f"  预估费用: ¥{est_cost:.4f}")
 
     with open("data/latest_report.md", "w", encoding="utf-8") as f:
         f.write(summary)

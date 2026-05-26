@@ -16,6 +16,8 @@ app = Flask(__name__)
 DEEPSEEK_API_KEY = os.environ.get('DEEPSEEK_API_KEY', '')
 DEEPSEEK_BASE_URL = os.environ.get('DEEPSEEK_BASE_URL', 'https://api.deepseek.com/v1')
 DEEPSEEK_MODEL = os.environ.get('DEEPSEEK_MODEL', 'deepseek-chat')
+MAX_CALLS_PER_HOUR = int(os.environ.get('MAX_CALLS_PER_HOUR', '60'))
+_call_timestamps = []
 
 PROFILE = {}
 
@@ -69,8 +71,17 @@ def extract_mimo_response_text(result):
 
 
 def evaluate_with_deepseek(jd_text):
+    import time
+    global _call_timestamps
+
     if not DEEPSEEK_API_KEY:
         return {"error": "DEEPSEEK_API_KEY 未设置", "success": False}
+
+    now = time.time()
+    _call_timestamps = [t for t in _call_timestamps if now - t < 3600]
+    if len(_call_timestamps) >= MAX_CALLS_PER_HOUR:
+        return {"error": f"已达到每小时调用上限 ({MAX_CALLS_PER_HOUR})", "success": False}
+    _call_timestamps.append(now)
 
     url = f"{DEEPSEEK_BASE_URL}/chat/completions"
     headers = {
