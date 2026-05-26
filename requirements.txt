@@ -1,0 +1,10 @@
+# 核心依赖
+requests>=2.28.0
+python-dotenv>=1.0.0
+
+# 浏览器自动化（用于get_cookie.py）
+selenium>=4.15.0
+webdriver-manager>=4.0.0
+
+# Web服务（用于deploy/scoring-service/app.py）
+flask>=3.0.0
