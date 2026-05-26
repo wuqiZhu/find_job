@@ -11,7 +11,7 @@ print("=" * 50)
 
 # Test DeepSeek API
 print("\n1. Testing DeepSeek API...")
-deepseek_key = os.getenv('DEEPSEEK_API_KEY', 'sk-97d3644395eb4087b2137c0073f65697')
+deepseek_key = os.getenv('DEEPSEEK_API_KEY', '')
 deepseek_url = os.getenv('DEEPSEEK_BASE_URL', 'https://api.deepseek.com/v1')
 deepseek_model = os.getenv('DEEPSEEK_MODEL', 'deepseek-chat')
 

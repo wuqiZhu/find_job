@@ -29,6 +29,10 @@ data/feedback_records.json
 data/logs/
 data/latest_report.md
 *.db
+cookie.txt
+output.txt
+run_output.txt
+test_output.txt
 
 # GitHub Actions
 !deploy/scoring-service/Dockerfile
