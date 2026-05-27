@@ -47,12 +47,22 @@ def get_config() -> dict:
 
     _load_env_file()
 
+    # 支持多种API配置方式
+    # 优先使用 DEEPSEEK_* 环境变量，其次使用 OPENAI_* 环境变量
+    api_key = os.environ.get('DEEPSEEK_API_KEY', '') or os.environ.get('OPENAI_API_KEY', '')
+    base_url = os.environ.get('DEEPSEEK_BASE_URL', '') or os.environ.get('OPENAI_API_BASE', 'https://api.xiaomimimo.com/v1')
+    model = os.environ.get('DEEPSEEK_MODEL', '') or os.environ.get('OPENAI_MODEL', 'mimo-v2-flash')
+
+    # 如果base_url不包含路径，添加/v1
+    if base_url and not base_url.endswith('/v1'):
+        base_url = base_url.rstrip('/') + '/v1'
+
     _config_cache = {
         'boss_cookie': os.environ.get('BOSS_COOKIE', ''),
         'scrape_mode': os.environ.get('SCRAPE_MODE', 'auto'),
-        'deepseek_api_key': os.environ.get('DEEPSEEK_API_KEY', ''),
-        'deepseek_base_url': os.environ.get('DEEPSEEK_BASE_URL', 'https://api.deepseek.com/v1'),
-        'deepseek_model': os.environ.get('DEEPSEEK_MODEL', 'deepseek-chat'),
+        'deepseek_api_key': api_key,
+        'deepseek_base_url': base_url,
+        'deepseek_model': model,
         'dingtalk_webhook': os.environ.get('DINGTALK_WEBHOOK', ''),
         'dingtalk_secret': os.environ.get('DINGTALK_SECRET', ''),
         'liepin_cookie': os.environ.get('LIEPIN_COOKIE', ''),
