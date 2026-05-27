@@ -2,6 +2,7 @@ import json
 import time
 import urllib.parse
 import logging
+import requests
 
 from .base import create_chrome_options, safe_quit_driver, random_delay
 
@@ -34,17 +35,25 @@ def search_lagou_jobs(query: str, city: str = "深圳", page: int = 1, page_size
             "city": city,
         }
 
-        resp = driver.post(api_url, data=data)
+        # 获取cookies用于requests请求
+        cookies_dict = {}
+        for cookie in driver.cookies():
+            cookies_dict[cookie['name']] = cookie['value']
+
+        headers = {
+            "Content-Type": "application/x-www-form-urlencoded",
+            "Referer": url,
+            "User-Agent": driver.user_agent
+        }
+
+        resp = requests.post(api_url, data=data, headers=headers, cookies=cookies_dict)
         time.sleep(2)
 
         try:
-            result = resp.json
+            result = resp.json()
         except Exception:
-            try:
-                result = json.loads(resp.text)
-            except Exception:
-                logger.error("拉勾: JSON解析失败")
-                return []
+            logger.error("拉勾: JSON解析失败")
+            return []
 
         code = result.get('code')
         if code != 0:

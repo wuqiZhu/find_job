@@ -2,6 +2,7 @@ import json
 import time
 import urllib.parse
 import logging
+import requests
 
 from ..config import get_config
 from .base import create_chrome_options, safe_quit_driver, random_delay
@@ -66,30 +67,25 @@ def search_liepin_jobs(query: str, city: str = "040", page: int = 1, page_size: 
             }
         }
 
-        resp = driver.post(api_url, json=payload)
+        # 获取cookies用于requests请求
+        cookies_dict = {}
+        for cookie in driver.cookies():
+            cookies_dict[cookie['name']] = cookie['value']
+
+        headers = {
+            "Content-Type": "application/json",
+            "Referer": url,
+            "User-Agent": driver.user_agent
+        }
+
+        resp = requests.post(api_url, json=payload, headers=headers, cookies=cookies_dict)
         time.sleep(2)
 
         try:
-            data = resp.json
+            data = resp.json()
         except Exception:
-            try:
-                data = json.loads(resp.text)
-            except Exception:
-                page_source = driver.html
-                if page_source:
-                    try:
-                        start = page_source.find('{')
-                        end = page_source.rfind('}') + 1
-                        if start >= 0 and end > start:
-                            data = json.loads(page_source[start:end])
-                        else:
-                            logger.error("猎聘: 无法解析JSON")
-                            return []
-                    except Exception:
-                        logger.error("猎聘: JSON解析失败")
-                        return []
-                else:
-                    return []
+            logger.error("猎聘: JSON解析失败")
+            return []
 
         code = data.get('code')
         msg = data.get('msg', '')
