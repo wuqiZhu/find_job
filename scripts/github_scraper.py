@@ -83,6 +83,9 @@ DINGTALK_SECRET = os.environ.get('DINGTALK_SECRET', '')
 DEEPSEEK_API_KEY = os.environ.get('DEEPSEEK_API_KEY', '')
 DEEPSEEK_BASE_URL = os.environ.get('DEEPSEEK_BASE_URL', 'https://api.deepseek.com/v1')
 DEEPSEEK_MODEL = os.environ.get('DEEPSEEK_MODEL', 'deepseek-chat')
+# 小米MiMo API作为备选（服务器配置）
+OPENAI_API_KEY = os.environ.get('OPENAI_API_KEY', '')
+OPENAI_API_BASE = os.environ.get('OPENAI_API_BASE', 'https://api.xiaomimimo.com/v1')
 SCRAPE_MODE = os.environ.get('SCRAPE_MODE', 'auto')
 LIEPIN_COOKIE = os.environ.get('LIEPIN_COOKIE', '')
 ZHAOPIN_COOKIE = os.environ.get('ZHAOPIN_COOKIE', '')
@@ -986,8 +989,8 @@ def extract_mimo_response_text(result):
 def evaluate_with_deepseek(jd_text, max_retries=2):
     global _api_call_count, _api_token_total
 
-    if not DEEPSEEK_API_KEY:
-        print("[WARN] DEEPSEEK_API_KEY 未设置，跳过评分")
+    if not DEEPSEEK_API_KEY and not OPENAI_API_KEY:
+        print("[WARN] DEEPSEEK_API_KEY 和 OPENAI_API_KEY 都未设置，跳过评分")
         return None
 
     if _api_call_count >= MAX_API_CALLS_PER_RUN:
@@ -1000,12 +1003,6 @@ def evaluate_with_deepseek(jd_text, max_retries=2):
     except ImportError:
         import requests as std_requests
         use_curl = False
-
-    url = f"{DEEPSEEK_BASE_URL}/chat/completions"
-    headers = {
-        "Content-Type": "application/json",
-        "Authorization": f"Bearer {DEEPSEEK_API_KEY}",
-    }
 
     # 从 profile.json 动态生成 prompt
     if PROFILE:
@@ -1078,45 +1075,69 @@ def evaluate_with_deepseek(jd_text, max_retries=2):
         "max_tokens": 300,
     }
 
-    for attempt in range(max_retries):
-        try:
-            if use_curl:
-                resp = curl_requests.post(url, headers=headers, json=payload, timeout=30, impersonate="chrome131")
-            else:
-                resp = std_requests.post(url, headers=headers, json=payload, timeout=30)
+    # 定义API配置列表，按优先级尝试
+    api_configs = []
+    if DEEPSEEK_API_KEY:
+        api_configs.append({
+            "name": "DeepSeek",
+            "url": f"{DEEPSEEK_BASE_URL}/chat/completions",
+            "headers": {"Authorization": f"Bearer {DEEPSEEK_API_KEY}", "Content-Type": "application/json"},
+            "model": DEEPSEEK_MODEL
+        })
+    if OPENAI_API_KEY:
+        api_configs.append({
+            "name": "MiMo",
+            "url": f"{OPENAI_API_BASE}/chat/completions",
+            "headers": {"Authorization": f"Bearer {OPENAI_API_KEY}", "Content-Type": "application/json"},
+            "model": "mimo-v2-flash"
+        })
 
-            if resp.status_code == 429:
-                print(f"[WARN] DeepSeek API限流，等待 {(attempt + 1) * 5}s")
-                time.sleep((attempt + 1) * 5)
-                continue
+    for api_config in api_configs:
+        print(f"  [API] 尝试使用 {api_config['name']} API...")
+        payload["model"] = api_config["model"]
+        
+        for attempt in range(max_retries):
+            try:
+                if use_curl:
+                    resp = curl_requests.post(api_config["url"], headers=api_config["headers"], json=payload, timeout=30, impersonate="chrome131")
+                else:
+                    resp = std_requests.post(api_config["url"], headers=api_config["headers"], json=payload, timeout=30)
 
-            if resp.status_code != 200:
-                print(f"[ERROR] DeepSeek API返回 HTTP {resp.status_code}: {resp.text[:200]}")
+                if resp.status_code == 429:
+                    print(f"[WARN] {api_config['name']} API限流，等待 {(attempt + 1) * 5}s")
+                    time.sleep((attempt + 1) * 5)
+                    continue
+
+                if resp.status_code != 200:
+                    print(f"[ERROR] {api_config['name']} API返回 HTTP {resp.status_code}: {resp.text[:200]}")
+                    if attempt < max_retries - 1:
+                        time.sleep(3)
+                    continue
+
+                result = resp.json()
+                _api_call_count += 1
+                usage = result.get("usage", {})
+                tokens = usage.get("total_tokens", 300)
+                _api_token_total += tokens
+                print(f"  [API] 第 {_api_call_count}/{MAX_API_CALLS_PER_RUN} 次调用, 本次 {tokens} tokens, 累计 {_api_token_total} tokens")
+                text = extract_mimo_response_text(result)
+                if not text:
+                    continue
+                text = text.strip().replace("```json", "").replace("```", "").strip()
+                return json.loads(text)
+
+            except json.JSONDecodeError as e:
+                print(f"[ERROR] {api_config['name']}评分响应解析失败 (尝试 {attempt + 1}/{max_retries}): {e}")
                 if attempt < max_retries - 1:
                     time.sleep(3)
-                continue
+            except Exception as e:
+                print(f"[ERROR] {api_config['name']}评分失败 (尝试 {attempt + 1}/{max_retries}): {e}")
+                if attempt < max_retries - 1:
+                    time.sleep(3)
 
-            result = resp.json()
-            _api_call_count += 1
-            usage = result.get("usage", {})
-            tokens = usage.get("total_tokens", 300)
-            _api_token_total += tokens
-            print(f"  [API] 第 {_api_call_count}/{MAX_API_CALLS_PER_RUN} 次调用, 本次 {tokens} tokens, 累计 {_api_token_total} tokens")
-            text = extract_mimo_response_text(result)
-            if not text:
-                return None
-            text = text.strip().replace("```json", "").replace("```", "").strip()
-            return json.loads(text)
+        print(f"[WARN] {api_config['name']} API 所有尝试均失败")
 
-        except json.JSONDecodeError as e:
-            print(f"[ERROR] DeepSeek评分响应解析失败 (尝试 {attempt + 1}/{max_retries}): {e}")
-            if attempt < max_retries - 1:
-                time.sleep(3)
-        except Exception as e:
-            print(f"[ERROR] DeepSeek评分失败 (尝试 {attempt + 1}/{max_retries}): {e}")
-            if attempt < max_retries - 1:
-                time.sleep(3)
-
+    print("[WARN] 所有API都无法使用，跳过评分")
     return None
 
 
