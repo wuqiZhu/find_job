@@ -153,7 +153,7 @@ SEARCH_QUERIES = [
     {"platform": "shixiseng", "query": "嵌入式开发", "city": "深圳", "city_name": "深圳"},
 ]
 
-SCORE_THRESHOLD = 80
+SCORE_THRESHOLD = 60
 DATA_DIR = "data"
 DATA_FILE = "data/seen_jobs.json"
 
