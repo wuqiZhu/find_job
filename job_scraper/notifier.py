@@ -62,6 +62,9 @@ def _post(payload: dict) -> bool:
 
 
 def send_markdown(title: str, content: str) -> bool:
+    # 确保消息正文包含关键词"通知"（钉钉机器人安全设置要求）
+    if "通知" not in content:
+        content = f"**通知**\n\n{content}"
     payload = {
         "msgtype": "markdown",
         "markdown": {"title": title, "text": content}

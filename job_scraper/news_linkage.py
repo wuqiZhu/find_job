@@ -133,6 +133,10 @@ def send_dingtalk_direct(title, content):
         
         url = f"{DINGTALK_WEBHOOK}&timestamp={timestamp}&sign={sign}"
         
+        # 确保消息正文包含关键词"通知"（钉钉机器人安全设置要求）
+        if "通知" not in content:
+            content = f"**通知**\n\n{content}"
+        
         payload = {
             "msgtype": "markdown",
             "markdown": {

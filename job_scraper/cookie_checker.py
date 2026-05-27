@@ -162,6 +162,10 @@ def send_dingtalk_notification(results: list):
 
     text = "\n".join(lines)
 
+    # 确保消息正文包含关键词"通知"（钉钉机器人安全设置要求）
+    if "通知" not in text:
+        text = f"**通知**\n\n{text}"
+
     try:
         import urllib.request
         if secret:
